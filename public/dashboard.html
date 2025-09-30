@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Whitelist</title>
+  <style>
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e2f; color: #dcdcdc; display: flex; height: 100vh; overflow: hidden; }
+    nav { width: 220px; background-color: #151520; display: flex; flex-direction: column; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.5); flex-shrink: 0; }
+    nav a { color: #dcdcdc; text-decoration: none; margin-bottom: 20px; font-weight: bold; transition: color 0.3s; }
+    nav a:hover { color: #4dabf7; }
+    nav a.active { color: #4dabf7; font-weight: bold; }
+    .main { flex: 1; padding: 20px; overflow-y: auto; }
+    .login-box { background: #29293d; padding: 20px; border-radius: 10px; width: 300px; text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; }
+    .login-box input, .login-box button { padding: 10px; margin: 5px; width: 100%; box-sizing: border-box; border-radius: 5px; border: none; }
+    .login-box button { background-color: #4dabf7; color: white; cursor: pointer; }
+    .login-box button:hover { background-color: #4094d1; }
+    .login-box .error { color: #f44336; }
+    .content-box { background: #29293d; padding: 15px; margin: 0 0 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .message { background: #e0ffe0; border: 1px solid #ccc; border-radius: 5px; padding: 8px; margin-bottom: 10px; color: green; display: none; }
+    .message.error { background: #ffe0e0; color: red; }
+    textarea { width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #444; background: #2a2a3e; color: #dcdcdc; padding: 8px; font-family: monospace; white-space: pre-wrap; word-wrap: break-word; resize: vertical; min-height: 100px; }
+    input[type="file"], button { padding: 8px; border-radius: 5px; border: none; background: #4dabf7; color: white; cursor: pointer; margin-top: 8px; font-size: 0.9em; }
+    button:hover, input[type="file"]:hover { background: #4094d1; }
+    .last-updated { background: #2a2a3e; border: 1px solid #444; padding: 8px; border-radius: 5px; margin-bottom: 10px; font-size: 0.85em; }
+    .download-btn { background-color: #007BFF; }
+    .download-btn:hover { background-color: #0056b3; }
+    h2, h3 { margin: 0 0 10px 0; font-size: 1.2em; }
+    p { margin: 5px 0; }
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      nav { width: 100%; flex-direction: row; justify-content: space-around; padding: 10px; }
+      nav a { margin: 0 10px; }
+      .main { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="#" id="dashboard-link" class="active">📋 Dashboard</a>
+    <a href="#" id="database-link">🗃️ Base de Datos</a>
+  </nav>
+  <div class="main" id="main-content">
+    <p>Bienvenido al panel de gestión de la whitelist. Por favor, inicia sesión.</p>
+  </div>
+  <div class="login-box" id="login-box">
+    <h1>🔒 Iniciar Sesión</h1>
+    <form id="login-form">
+      <input type="text" id="username" placeholder="Usuario" required>
+      <input type="password" id="password" placeholder="Contraseña" required>
+      <button type="submit">Iniciar Sesión</button>
+      <p class="error" id="login-error"></p>
+    </form>
+  </div>
+  <script>
+    const API_BASE_URL = '/api';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        initializeDashboard(token);
+      } else {
+        document.getElementById('login-box').style.display = 'block';
+      }
+
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        try {
+          const response = await fetch(`${API_BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await response.json();
+          if (data.ok) {
+            localStorage.setItem('authToken', data.token);
+            document.getElementById('login-box').style.display = 'none';
+            initializeDashboard(data.token);
+          } else {
+            document.getElementById('login-error').textContent = data.error || 'Usuario o contraseña incorrectos';
+          }
+        } catch (error) {
+          document.getElementById('login-error').textContent = 'Error de conexión';
+        }
+      });
+
+      function initializeDashboard(token) {
+        setActiveLink('dashboard-link');
+        document.getElementById('main-content').innerHTML = '<p>Bienvenido al panel de gestión de la whitelist.</p>';
+
+        document.getElementById('dashboard-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          setActiveLink('dashboard-link');
+          document.getElementById('main-content').innerHTML = '<p>Bienvenido al panel de gestión de la whitelist.</p>';
+        });
+
+        document.getElementById('database-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          setActiveLink('database-link');
+          document.getElementById('main-content').innerHTML = `
+            <div class="content-box">
+              <h2>Subir archivo a Whitelist</h2>
+              <div id="message"></div>
+              <div class="last-updated" id="last-updated">
+                <strong>📋 Última actualización:</strong><br>
+                <span id="last-updated-text">Cargando...</span>
+              </div>
+              <form id="upload-form">
+                <label for="archivo">Selecciona un archivo TXT o CSV:</label><br>
+                <input type="file" name="archivo" id="archivo" accept=".txt,.csv" required>
+                <br>
+                <button type="submit">Subir archivo</button>
+              </form>
+              <a id="download-link" href="/api/whitelist/download?token=${token}">
+                <button class="download-btn">Descargar Whitelist</button>
+              </a>
+            </div>
+            <div class="content-box">
+              <h3>Editar Whitelist Manualmente</h3>
+              <form id="edit-form">
+                <p style="color: #f44336;">Advertencia: Los cambios se añadirán o actualizarán sin eliminar registros existentes.</p>
+                <textarea name="editar_contenido" id="editar_contenido" rows="10" placeholder="Formato: telefono,DEUDA (una línea por registro)"></textarea>
+                <br>
+                <button type="submit">Guardar cambios</button>
+              </form>
+            </div>
+          `;
+          initializeWhitelist(token);
+        });
+      }
+
+      function setActiveLink(id) {
+        document.querySelectorAll('nav a').forEach(link => link.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+      }
+
+      function initializeWhitelist(token) {
+        function showMessage(text, isError = false) {
+          const messageDiv = document.getElementById('message');
+          messageDiv.textContent = text;
+          messageDiv.className = `message ${isError ? 'error' : ''}`;
+          messageDiv.style.display = 'block';
+          setTimeout(() => messageDiv.style.display = 'none', 5000);
+        }
+
+        async function loadInitialData() {
+          try {
+            const response = await fetch(`${API_BASE_URL}/whitelist/metadata`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Respuesta no válida');
+            const data = await response.json();
+            if (data.ok) {
+              document.getElementById('last-updated-text').textContent = 
+                `Archivo editado por ${data.last_updated_by} el ${new Date(data.last_updated_at).toLocaleDateString('es-CO')}`;
+              document.getElementById('editar_contenido').value = data.last_lines.join('\n') || '';
+            } else {
+              showMessage('Error al cargar datos iniciales', true);
+            }
+          } catch (error) {
+            showMessage('Error de conexión con el servidor: ' + error.message, true);
+          }
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const formData = new FormData();
+          formData.append('archivo', document.getElementById('archivo').files[0]);
+          try {
+            const response = await fetch(`${API_BASE_URL}/subir`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+            const data = await response.json();
+            if (data.ok) {
+              showMessage(`Archivo subido. Líneas válidas: ${data.valid_lines}, inválidas: ${data.invalid_lines}, Total en whitelist: ${data.total_lines || 'Desconocido'}`);
+              await loadInitialData();
+            } else {
+              showMessage(data.error || 'Error al subir el archivo', true);
+            }
+          } catch (error) {
+            showMessage('Error de conexión con el servidor: ' + error.message, true);
+          }
+        });
+
+        document.getElementById('edit-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          let newContent = document.getElementById('editar_contenido').value;
+          if (newContent && !newContent.endsWith('\n')) {
+            newContent += '\n';
+          }
+          try {
+            const response = await fetch(`${API_BASE_URL}/subir`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ content: newContent })
+            });
+            const data = await response.json();
+            if (data.ok) {
+              showMessage(`Contenido guardado. Líneas válidas: ${data.valid_lines}, inválidas: ${data.invalid_lines}, Total en whitelist: ${data.total_lines || 'Desconocido'}`);
+              await loadInitialData();
+            } else {
+              showMessage(data.error || 'Error al guardar cambios', true);
+            }
+          } catch (error) {
+            showMessage('Error de conexión con el servidor: ' + error.message, true);
+          }
+        });
+
+        loadInitialData();
+      }
+    });
+  </script>
+</body>
+</html>
