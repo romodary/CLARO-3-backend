@@ -33,7 +33,7 @@ app.use(express.static('public')); // Servir subir.html
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  if (username === 'admin' && password === '2304') {
+  if (username === 'admin' && password === '2255') {
     return res.json({ ok: true, token: process.env.API_TOKEN });
   }
   res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
